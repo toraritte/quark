@@ -20,7 +20,92 @@ defmodule Quark.Partial do
 
   defmacro __using__(_) do
     quote do
-      import Quark.Partial, only: [defpartial: 2, defpartialp: 2]
+      import Quark.Partial, only: [defpartial: 2, defpartialp: 2, defpartialx: 2]
+    end
+  end
+
+  @doc """
+  "x"  as   in  experimental.  Curried   clauses  call
+  the   defined  functions   in   the  module   (using
+  `Kernel.apply/2`)   instead   of   a   parameterized
+  `defcurry`ed  anonymous   function  as  `defpartial`
+  does. The  reason for  this is  so that  the defined
+  curried functions  can be  overridden if  needed (to
+  add constraints, etc.).
+
+  Modeled after:
+
+  ```elixir
+  defmodule A do
+    defmacro __using__(_) do
+      quote do
+        def new(), do: fn(a)    -> apply(__MODULE__, :new, [a]) end
+        def new(a), do: fn(b)   -> apply(__MODULE__, :new, [a, b]) end
+        def new(a,b), do: fn(c) -> apply(__MODULE__, :new, [a, b, c]) end
+        def new(a, b, c), do: a - b - c
+
+        defoverridable new: 0, new: 1, new: 2
+      end
+    end
+  end
+
+  defmodule B do
+    use A
+    def new(a) when is_integer(a), do: super(a)
+    def new(_), do: raise(ArgumentError, "not integer")
+  end
+  ```
+
+  Example usage:
+  ```elixir
+  defmodule D do
+    defmacro __using__(_) do
+      quote do
+        use Quark
+
+        defpartialx m(a,b,c), do: a-b-c
+
+        defoverridable [m: 0, m: 1, m: 2, m: 3]
+      end
+    end
+  end
+
+  defmodule E do
+    use D
+
+    def m(a) when is_integer(a), do: super(a)
+    def m(_), do: raise(ArgumentError, "not int")
+
+    def m(a,b) when is_integer(a) and is_integer(b), do: super(a,b)
+    def m(_,_), do: raise(ArgumentError, "not int")
+
+    def m(a,b,c) when is_integer(a) and is_integer(b) and is_integer(c), do: super(a,b,c)
+    def m(_,_,_), do: raise(ArgumentError, "not int")
+  end
+  ```
+
+  (**Sidenote**: the constraints verbosity could be abstracted, for example in Algae when adding constraints.)
+  """
+
+  defmacro defpartialx({fun_name, ctx, args}, do: body) do
+    scanned_args = [[]] ++ args_scan(args)
+    quote do
+      unquote do: make_curried_clauses(scanned_args, {fun_name, ctx, body})
+    end
+  end
+
+  defp make_curried_clauses([args], {fun_name, ctx, body}) do
+    quote do
+      def unquote({fun_name, ctx, args}), do: unquote(body)
+    end
+  end
+
+  defp make_curried_clauses([args|rest], {fun_name, ctx, _} = fun_attrs) do
+    quote do
+      def unquote({fun_name, ctx, args}) do
+        fn(curried) -> apply(__MODULE__, unquote(fun_name), unquote(args) ++ [curried]) end
+      end
+      unquote do: make_curried_clauses(rest, fun_attrs)
     end
   end
 
