@@ -59,6 +59,8 @@ defmodule Quark.Partial do
   Example usage:
   ```elixir
   defmodule D do
+  
+
     defmacro __using__(_) do
       quote do
         use Quark
@@ -66,6 +68,12 @@ defmodule Quark.Partial do
         defpartialx m(a,b,c), do: a-b-c
 
         defoverridable [m: 0, m: 1, m: 2, m: 3]
+
+        def m(i) when is_integer(i), do: super(i)
+        def m(_), do: raise(ArgumentError, "not int")
+
+        def m(i, j) when is_integer(i) and is_integer(j), do: super(i,j)
+        def m(_,_), do: raise(ArgumentError, "not int")
       end
     end
   end
@@ -86,28 +94,53 @@ defmodule Quark.Partial do
 
   (**Sidenote**: the constraints verbosity could be abstracted, for example in Algae when adding constraints.)
   """
+  defmacro defpartialx({fun_name, ctx, args} = f, do: body) do
 
-  defmacro defpartialx({fun_name, ctx, args}, do: body) do
-    scanned_args = [[]] ++ args_scan(args)
+    IO.inspect(f)
+    {args_without_opts, opts} =
+      Enum.split_with(args, fn(e) -> is_tuple(e) end)
+    IO.inspect("opts: ")
+    IO.inspect(opts)
+
+    scanned_args = [[]] ++ args_scan(args_without_opts)
     quote do
-      unquote do: make_curried_clauses(scanned_args, {fun_name, ctx, body})
+      unquote do: make_curried_clauses(scanned_args, {fun_name, ctx, body}, List.flatten(opts))
     end
   end
 
-  defp make_curried_clauses([args], {fun_name, ctx, body}) do
+  defp make_curried_clauses([args], {fun_name, ctx, body}, opts) do
     quote do
       def unquote({fun_name, ctx, args}), do: unquote(body)
     end
   end
 
-  defp make_curried_clauses([args|rest], {fun_name, ctx, _} = fun_attrs) do
+  defp make_curried_clauses([args|rest], {fun_name, ctx, _} = fun_attrs, opts) do
     quote do
       def unquote({fun_name, ctx, args}) do
-        fn(curried) -> apply(__MODULE__, unquote(fun_name), unquote(args) ++ [curried]) end
+        IO.write("args: ")
+        IO.inspect(unquote(args))
+        fn(curried) ->
+          IO.write("curried: ")
+          IO.inspect(curried)
+          case unquote(opts) do
+            [{:insert, fun}] ->
+              IO.inspect("insert fun: ")
+              IO.inspect(fun)
+              fun.(curried)
+            [] ->
+              :noop
+          end
+          apply(__MODULE__, unquote(fun_name), unquote(args) ++ [curried])
+        end
       end
-      unquote do: make_curried_clauses(rest, fun_attrs)
+      unquote do: make_curried_clauses(rest, fun_attrs, opts)
     end
   end
+
+  # defmodule A do
+  #   use Quark
+  #   defpartialx miez(a,b,c, insert: fn(curried) -> IO.puts("WORKS: #{curried}") end ), do: a+b+c
+  # end
 
   @doc ~S"""
   A convenience on `defcurry`. Generates a series of partially-bound
