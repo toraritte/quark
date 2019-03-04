@@ -137,10 +137,42 @@ defmodule Quark.Partial do
     end
   end
 
-  # defmodule A do
-  #   use Quark
-  #   defpartialx miez(a,b,c, insert: fn(curried) -> IO.puts("WORKS: #{curried}") end ), do: a+b+c
-  # end
+  @doc """
+  ```
+  defmodule A do
+    use Quark
+    defpartialx miez(a,b,c, insert: fn(curried) -> IO.puts("WORKS: #{curried}") end ), do: a+b+c
+  end
+  ```
+
+  -------
+
+  ```
+  use Quark
+  defmodule A do
+    defpartialx aa(a,b,c), do: a-b-c
+  end
+  defmodule B do
+    defpartial bb(a,b,c), do: a-b-c
+  end
+
+  defmodule C do
+    defmacro __using__(_) do
+      quote do
+        defpartial cc(a,b,c), do: a-b-c
+        defoverridable [cc: 1, cc: 2, cc: 3]
+      end
+    end
+  end
+
+  defmodule D do
+    use C
+    def cc(a,b) do
+      super(a+1, b+2)
+    end
+  end
+  ```
+  """
 
   @doc ~S"""
   A convenience on `defcurry`. Generates a series of partially-bound
