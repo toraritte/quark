@@ -103,7 +103,7 @@ defmodule Quark.Partial do
   defp make_curried_clauses([args|rest], {fun_name, ctx, _} = fun_attrs) do
     quote do
       def unquote({fun_name, ctx, args}) do
-        fn(curried) -> apply(__MODULE__, unquote(fun_name), unquote(args) ++ [curried]) end
+        &apply(__MODULE__, unquote(fun_name), unquote(args) ++ [&1])
       end
       unquote do: make_curried_clauses(rest, fun_attrs)
     end
