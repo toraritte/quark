@@ -31,7 +31,7 @@ defmodule Quark.Mixfile do
 
         {:dialyxir, "~> 0.5",  only: :dev},
         {:earmark,  "~> 1.2",  only: :dev},
-        {:ex_doc,   "~> 0.16", only: :dev},
+        {:ex_doc,   "~> 0.19", only: :dev},
 
         {:inch_ex,  "~> 0.5",  only: [:dev, :docs, :test]}
       ],
